@@ -1,0 +1,53 @@
+#!/bin/sh
+
+if [[ -z "${GARAGE_RPC_SECRET}" ]]; then
+  echo "environment variable GARAGE_RPC_SECRET must be set"
+  exit 1
+fi
+if [[ -z "${GARAGE_ADMIN_TOKEN}" ]]; then
+  echo "environment variable GARAGE_ADMIN_TOKEN must be set"
+  exit 1
+fi
+if [[ -z "${GARAGE_METRICS_TOKEN}" ]]; then
+  echo "environment variable GARAGE_METRICS_TOKEN must be set"
+  exit 1
+fi
+
+[[ -z "${GARAGE_S3_REGION}" ]] && export GARAGE_S3_REGION="garage"
+[[ -z "${GARAGE_S3_API_ROOT_DOMAIN}" ]] && export GARAGE_S3_API_ROOT_DOMAIN=".s3.garage.localhost"
+[[ -z "${GARAGE_S3_WEB_ROOT_DOMAIN}" ]] && export GARAGE_S3_WEB_ROOT_DOMAIN=".web.garage.localhost"
+
+umask 0077
+mkdir /garage
+
+cat <<EOT >/etc/garage.toml
+metadata_dir = "/garage/meta"
+data_dir = "/garage/data"
+db_engine = "sqlite"
+
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+rpc_secret = "${GARAGE_RPC_SECRET}"
+
+[s3_api]
+s3_region = "${GARAGE_S3_REGION}"
+api_bind_addr = "[::]:3900"
+root_domain = "${GARAGE_S3_API_ROOT_DOMAIN}"
+
+[s3_web]
+bind_addr = "[::]:3902"
+root_domain = "${GARAGE_S3_WEB_ROOT_DOMAIN}"
+index = "index.html"
+
+[k2v_api]
+api_bind_addr = "[::]:3904"
+
+[admin]
+api_bind_addr = "[::]:3903"
+admin_token = "$(echo ${GARAGE_ADMIN_TOKEN} | base64 -w0)"
+metrics_token = "$(echo ${GARAGE_METRICS_TOKEN} | base64 -w0)"
+EOT
+
+/usr/bin/garage server
